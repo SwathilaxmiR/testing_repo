@@ -1,0 +1,1613 @@
+rules:
+- id: fixora-wrapper-get-user-sql-injection
+  patterns:
+  - pattern-inside: "def get_user(...):\n  ..."
+  - pattern-either:
+    - pattern: sqlite3.connect(...)
+    - pattern: $OBJ.connect(...)
+    - pattern: connect(...)
+    - pattern: conn.cursor(...)
+    - pattern: $OBJ.cursor(...)
+    - pattern: cursor(...)
+    - pattern: cursor.execute(...)
+    - pattern: $OBJ.execute(...)
+    - pattern: execute(...)
+  message: 'SQL Injection via `user_id`
+
+    Vulnerable Sink: Passes untrusted data directly to `sqlite3.connect, conn.cursor,
+    cursor.execute`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: &id001
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: HIGH
+    wrapper_defined_in: backend/easy.py
+    wraps:
+    - sqlite3.connect
+    - conn.cursor
+    - cursor.execute
+    modules_used:
+    - sqlite3
+    vulnerable_parameter: user_id
+    malicious_payload: 1 OR 1=1 --
+    exploit_explanation: The attacker-controlled user_id is concatenated into the
+      SQL WHERE clause, so the payload converts the predicate into an always-true
+      condition.
+    exploit_injected_example: get_user(user_id = 1 OR 1=1 --)
+    impact_summary: Attackers can exfiltrate all rows from the table and bypass authorization
+      checks tied to user scoping.
+    cwe: &id007
+    - CWE-89
+    owasp: &id008
+    - A03:2021
+- id: fixora-taint-get-user-sql-injection
+  mode: taint
+  pattern-sources:
+  - pattern: request.args.get('id')
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: get_user(...)
+  - pattern: $OBJ.get_user(...)
+  - patterns:
+    - pattern-inside: "def get_user(...):\n  ..."
+    - pattern: cursor.execute(...)
+  message: 'Taint tracked to vulnerable wrapper `get_user`.
+
+    SQL Injection via `user_id`
+
+    Vulnerable Sink: Passes untrusted data directly to `sqlite3.connect, conn.cursor,
+    cursor.execute`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: *id001
+  pattern-sanitizers:
+  - pattern: int(...)
+  - pattern: parameterized_query(...)
+- id: fixora-wrapper-ping-server-command-injection
+  patterns:
+  - pattern-inside: "def ping_server(...):\n  ..."
+  - pattern-either:
+    - pattern: os.system(...)
+    - pattern: $OBJ.system(...)
+    - pattern: system(...)
+  message: 'Command Injection via `ip_address`
+
+    Vulnerable Sink: Passes untrusted data directly to `os.system`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: &id002
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Command Injection
+    confidence: HIGH
+    wrapper_defined_in: backend/easy.py
+    wraps:
+    - os.system
+    modules_used:
+    - os
+    vulnerable_parameter: ip_address
+    malicious_payload: ; rm -rf /
+    exploit_explanation: The attacker-controlled ip_address is concatenated into the
+      system command, allowing arbitrary command execution.
+    exploit_injected_example: ping_server(ip_address = ; rm -rf /)
+    impact_summary: Attackers can execute arbitrary system commands, potentially leading
+      to a complete system compromise.
+    cwe: &id011
+    - CWE-78
+    owasp: &id012
+    - A03:2021
+- id: fixora-taint-ping-server-command-injection
+  mode: taint
+  pattern-sources:
+  - pattern: request.args.get('ip')
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: ping_server(...)
+  - pattern: $OBJ.ping_server(...)
+  - patterns:
+    - pattern-inside: "def ping_server(...):\n  ..."
+    - pattern: os.system(...)
+  message: 'Taint tracked to vulnerable wrapper `ping_server`.
+
+    Command Injection via `ip_address`
+
+    Vulnerable Sink: Passes untrusted data directly to `os.system`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: *id002
+  pattern-sanitizers:
+  - pattern: shlex.quote(...)
+  - pattern: subprocess.run(..., shell=False)
+- id: fixora-wrapper-read-log-path-traversal
+  patterns:
+  - pattern-inside: "def read_log(...):\n  ..."
+  - pattern-either:
+    - pattern: open(...)
+    - pattern: $OBJ.open(...)
+  message: 'Path Traversal via `filename`
+
+    Vulnerable Sink: Passes untrusted data directly to `open`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: &id003
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Path Traversal
+    confidence: HIGH
+    wrapper_defined_in: backend/easy.py
+    wraps:
+    - open
+    modules_used:
+    - builtins
+    vulnerable_parameter: filename
+    malicious_payload: ../../../../etc/passwd
+    exploit_explanation: The attacker-controlled filename is concatenated into the
+      file path, allowing access to arbitrary files.
+    exploit_injected_example: read_log(filename = ../../../../etc/passwd)
+    impact_summary: Attackers can read arbitrary files on the system, potentially
+      leading to sensitive data exposure.
+    cwe:
+    - CWE-22
+    owasp:
+    - A01:2021
+- id: fixora-taint-read-log-path-traversal
+  mode: taint
+  pattern-sources:
+  - pattern: request.args.get('file')
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: read_log(...)
+  - pattern: $OBJ.read_log(...)
+  - patterns:
+    - pattern-inside: "def read_log(...):\n  ..."
+    - pattern: open(..., 'r')
+  message: 'Taint tracked to vulnerable wrapper `read_log`.
+
+    Path Traversal via `filename`
+
+    Vulnerable Sink: Passes untrusted data directly to `open`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: *id003
+  pattern-sanitizers:
+  - pattern: os.path.join(...)
+  - pattern: pathlib.Path(...).resolve()
+- id: fixora-wrapper-login-plaintext-password
+  patterns:
+  - pattern-inside: "def login(...):\n  ..."
+  - pattern-either:
+    - pattern: data.get(...)
+    - pattern: $OBJ.get(...)
+    - pattern: get(...)
+  message: 'Plaintext Password via `password`
+
+    Vulnerable Sink: Passes untrusted data directly to `data.get`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: &id004
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Plaintext Password
+    confidence: HIGH
+    wrapper_defined_in: backend/easy.py
+    wraps:
+    - data.get
+    modules_used:
+    - flask
+    vulnerable_parameter: password
+    malicious_payload: ''
+    exploit_explanation: The password is compared in plaintext, allowing an attacker
+      to intercept and reuse the password.
+    exploit_injected_example: ''
+    impact_summary: Attackers can intercept and reuse the password, potentially leading
+      to unauthorized access.
+    cwe:
+    - CWE-256
+    - CWE-916
+    owasp:
+    - A02:2021
+- id: fixora-taint-login-plaintext-password
+  mode: taint
+  pattern-sources:
+  - pattern: request.json.get('password')
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: login(...)
+  - pattern: $OBJ.login(...)
+  - patterns:
+    - pattern-inside: "def login(...):\n  ..."
+    - pattern: data.get('password')
+  message: 'Taint tracked to vulnerable wrapper `login`.
+
+    Plaintext Password via `password`
+
+    Vulnerable Sink: Passes untrusted data directly to `data.get`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: *id004
+  pattern-sanitizers:
+  - pattern: hashlib.sha256(...).hexdigest()
+  - pattern: bcrypt.hashpw(..., ...)
+- id: fixora-wrapper-delete-all-users-missing-authentication
+  patterns:
+  - pattern-inside: "def delete_all_users(...):\n  ..."
+  - pattern-either:
+    - pattern: sqlite3.connect(...)
+    - pattern: $OBJ.connect(...)
+    - pattern: connect(...)
+    - pattern: conn.execute(...)
+    - pattern: $OBJ.execute(...)
+    - pattern: execute(...)
+  message: 'Missing Authentication via `None`
+
+    Vulnerable Sink: Passes untrusted data directly to `sqlite3.connect, conn.execute`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: &id005
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Missing Authentication
+    confidence: HIGH
+    wrapper_defined_in: backend/easy.py
+    wraps:
+    - sqlite3.connect
+    - conn.execute
+    modules_used:
+    - sqlite3
+    vulnerable_parameter: None
+    malicious_payload: ''
+    exploit_explanation: The function lacks an authentication check, allowing an attacker
+      to delete all users without authorization.
+    exploit_injected_example: ''
+    impact_summary: Attackers can delete all users, potentially leading to data loss
+      and system compromise.
+    cwe:
+    - CWE-306
+    owasp:
+    - A01:2021
+- id: fixora-taint-delete-all-users-missing-authentication
+  mode: taint
+  pattern-sources:
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: delete_all_users(...)
+  - pattern: $OBJ.delete_all_users(...)
+  - patterns:
+    - pattern-inside: "def delete_all_users(...):\n  ..."
+    - pattern: conn.execute(...)
+  message: 'Taint tracked to vulnerable wrapper `delete_all_users`.
+
+    Missing Authentication via `None`
+
+    Vulnerable Sink: Passes untrusted data directly to `sqlite3.connect, conn.execute`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: *id005
+  pattern-sanitizers:
+  - pattern: '@require_auth'
+  - pattern: 'if current_user.is_authenticated: ...'
+- id: fixora-wrapper-import-data-insecure-deserialization
+  patterns:
+  - pattern-inside: "def import_data(...):\n  ..."
+  - pattern-either:
+    - pattern: pickle.loads(...)
+    - pattern: $OBJ.loads(...)
+    - pattern: loads(...)
+  message: 'Insecure Deserialization via `data`
+
+    Vulnerable Sink: Passes untrusted data directly to `pickle.loads`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: &id006
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Insecure Deserialization
+    confidence: HIGH
+    wrapper_defined_in: backend/easy.py
+    wraps:
+    - pickle.loads
+    modules_used:
+    - pickle
+    vulnerable_parameter: data
+    malicious_payload: <SEMGREP_TAINT_SINK>
+    exploit_explanation: Terminal sink identified for Semgrep cross-file taint engine.
+    exploit_injected_example: import_data(data = <SEMGREP_TAINT_SINK>)
+    impact_summary: Depends on the upstream caller.
+- id: fixora-taint-import-data-insecure-deserialization
+  mode: taint
+  pattern-sources:
+  - pattern: request.data
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: import_data(...)
+  - pattern: $OBJ.import_data(...)
+  - patterns:
+    - pattern-inside: "def import_data(...):\n  ..."
+    - pattern: pickle.loads(...)
+  message: 'Taint tracked to vulnerable wrapper `import_data`.
+
+    Insecure Deserialization via `data`
+
+    Vulnerable Sink: Passes untrusted data directly to `pickle.loads`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: *id006
+  pattern-sanitizers:
+  - pattern: json.loads(...)
+  - pattern: yaml.safe_load(...)
+- id: fixora-wrapper-view-profile-sql-injection
+  patterns:
+  - pattern-inside: "def view_profile(...):\n  ..."
+  - pattern-either:
+    - pattern: sqlite3.connect(...)
+    - pattern: $OBJ.connect(...)
+    - pattern: connect(...)
+    - pattern: conn.cursor(...)
+    - pattern: $OBJ.cursor(...)
+    - pattern: cursor(...)
+    - pattern: cursor.execute(...)
+    - pattern: $OBJ.execute(...)
+    - pattern: execute(...)
+  message: 'SQL Injection via `bio`
+
+    Vulnerable Sink: Passes untrusted data directly to `sqlite3.connect, conn.cursor,
+    cursor.execute`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: &id009
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: HIGH
+    wrapper_defined_in: backend/hard.py
+    wraps:
+    - sqlite3.connect
+    - conn.cursor
+    - cursor.execute
+    modules_used:
+    - sqlite3
+    vulnerable_parameter: bio
+    malicious_payload: 1' OR 1=1 --
+    exploit_explanation: The attacker-controlled bio is concatenated into the SQL
+      query, allowing arbitrary SQL execution.
+    exploit_injected_example: view_profile(bio = 1' OR 1=1 --)
+    impact_summary: Attackers can execute arbitrary SQL queries, potentially leading
+      to data exposure and system compromise.
+    cwe: *id007
+    owasp: *id008
+- id: fixora-taint-view-profile-sql-injection
+  mode: taint
+  pattern-sources:
+  - pattern: cursor.fetchone()[0]
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: view_profile(...)
+  - pattern: $OBJ.view_profile(...)
+  - patterns:
+    - pattern-inside: "def view_profile(...):\n  ..."
+    - pattern: cursor.execute(...)
+  - patterns:
+    - pattern-inside: "def view_profile(...):\n  ..."
+    - pattern: cursor.execute(..., bio)
+  message: 'Taint tracked to vulnerable wrapper `view_profile`.
+
+    SQL Injection via `bio`
+
+    Vulnerable Sink: Passes untrusted data directly to `sqlite3.connect, conn.cursor,
+    cursor.execute`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: *id009
+  pattern-sanitizers:
+  - pattern: int(...)
+  - pattern: parameterized_query(...)
+- id: fixora-wrapper-update-settings-idor---broken-access-control
+  patterns:
+  - pattern-inside: "def update_settings(...):\n  ..."
+  - pattern-either:
+    - pattern: sqlite3.connect(...)
+    - pattern: $OBJ.connect(...)
+    - pattern: connect(...)
+    - pattern: conn.execute(...)
+    - pattern: $OBJ.execute(...)
+    - pattern: execute(...)
+  message: 'IDOR / Broken Access Control via `target_user_id`
+
+    Vulnerable Sink: Passes untrusted data directly to `sqlite3.connect, conn.execute`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: &id010
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: HIGH
+    wrapper_defined_in: backend/hard.py
+    wraps:
+    - sqlite3.connect
+    - conn.execute
+    modules_used:
+    - sqlite3
+    vulnerable_parameter: target_user_id
+    malicious_payload: ''
+    exploit_explanation: The function lacks access control, allowing an attacker to
+      update settings for any user.
+    exploit_injected_example: ''
+    impact_summary: Attackers can update settings for any user, potentially leading
+      to unauthorized access and data tampering.
+- id: fixora-taint-update-settings-idor---broken-access-control
+  mode: taint
+  pattern-sources:
+  - pattern: request.json.get('target_user_id')
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: update_settings(...)
+  - pattern: $OBJ.update_settings(...)
+  - patterns:
+    - pattern-inside: "def update_settings(...):\n  ..."
+    - pattern: conn.execute(...)
+  - patterns:
+    - pattern-inside: "def update_settings(...):\n  ..."
+    - pattern: conn.execute(..., target_id)
+  message: 'Taint tracked to vulnerable wrapper `update_settings`.
+
+    IDOR / Broken Access Control via `target_user_id`
+
+    Vulnerable Sink: Passes untrusted data directly to `sqlite3.connect, conn.execute`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: *id010
+  pattern-sanitizers:
+  - pattern: '@require_auth'
+  - pattern: 'if current_user.is_authenticated: ...'
+- id: fixora-wrapper-process-data-command-injection
+  patterns:
+  - pattern-inside: "def process_data(...):\n  ..."
+  - pattern-either:
+    - pattern: subprocess.Popen(...)
+    - pattern: $OBJ.Popen(...)
+    - pattern: Popen(...)
+  message: 'Command Injection via `filename`
+
+    Vulnerable Sink: Passes untrusted data directly to `subprocess.Popen`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: &id013
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Command Injection
+    confidence: HIGH
+    wrapper_defined_in: backend/hard.py
+    wraps:
+    - subprocess.Popen
+    modules_used:
+    - subprocess
+    vulnerable_parameter: filename
+    malicious_payload: <SEMGREP_TAINT_SINK>
+    exploit_explanation: Terminal sink identified for Semgrep cross-file taint engine.
+    exploit_injected_example: process_data(filename = <SEMGREP_TAINT_SINK>)
+    impact_summary: Depends on the upstream caller.
+    cwe: *id011
+    owasp: *id012
+- id: fixora-taint-process-data-command-injection
+  mode: taint
+  pattern-sources:
+  - pattern: request.json.get('filename')
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: process_data(...)
+  - pattern: $OBJ.process_data(...)
+  - patterns:
+    - pattern-inside: "def process_data(...):\n  ..."
+    - pattern: subprocess.Popen(..., shell=True)
+  message: 'Taint tracked to vulnerable wrapper `process_data`.
+
+    Command Injection via `filename`
+
+    Vulnerable Sink: Passes untrusted data directly to `subprocess.Popen`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: *id013
+- id: fixora-wrapper-reset-system-sql-injection
+  patterns:
+  - pattern-inside: "def reset_system(...):\n  ..."
+  - pattern-either:
+    - pattern: conn.execute(...)
+    - pattern: $OBJ.execute(...)
+    - pattern: execute(...)
+  message: 'SQL Injection via `table_name`
+
+    Vulnerable Sink: Passes untrusted data directly to `conn.execute`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: &id014
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: HIGH
+    wrapper_defined_in: backend/hard.py
+    wraps:
+    - conn.execute
+    modules_used:
+    - sqlite3
+    vulnerable_parameter: table_name
+    malicious_payload: <SEMGREP_TAINT_SINK>
+    exploit_explanation: Terminal sink identified for Semgrep cross-file taint engine.
+    exploit_injected_example: reset_system(table_name = <SEMGREP_TAINT_SINK>)
+    impact_summary: Depends on the upstream caller.
+    cwe: *id007
+    owasp: *id008
+- id: fixora-taint-reset-system-sql-injection
+  mode: taint
+  pattern-sources:
+  - pattern: request.json.get('table_name')
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: reset_system(...)
+  - pattern: $OBJ.reset_system(...)
+  - patterns:
+    - pattern-inside: "def reset_system(...):\n  ..."
+    - pattern: conn.execute(..., f-string)
+  message: 'Taint tracked to vulnerable wrapper `reset_system`.
+
+    SQL Injection via `table_name`
+
+    Vulnerable Sink: Passes untrusted data directly to `conn.execute`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: *id014
+- id: fixora-wrapper-search-users-sql-injection
+  patterns:
+  - pattern-inside: "def search_users(...):\n  ..."
+  - pattern-either:
+    - pattern: db.users.find(...)
+    - pattern: $OBJ.find(...)
+    - pattern: find(...)
+  message: 'SQL Injection via `query`
+
+    Vulnerable Sink: Passes untrusted data directly to `db.users.find`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: &id015
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SQL Injection
+    confidence: HIGH
+    wrapper_defined_in: backend/hard.py
+    wraps:
+    - db.users.find
+    modules_used:
+    - pymongo
+    vulnerable_parameter: query
+    malicious_payload: <SEMGREP_TAINT_SINK>
+    exploit_explanation: Terminal sink identified for Semgrep cross-file taint engine.
+    exploit_injected_example: search_users(query = <SEMGREP_TAINT_SINK>)
+    impact_summary: Depends on the upstream caller.
+    cwe: *id007
+    owasp: *id008
+- id: fixora-taint-search-users-sql-injection
+  mode: taint
+  pattern-sources:
+  - pattern: request.json
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: search_users(...)
+  - pattern: $OBJ.search_users(...)
+  - patterns:
+    - pattern-inside: "def search_users(...):\n  ..."
+    - pattern: db.users.find(..., query)
+  message: 'Taint tracked to vulnerable wrapper `search_users`.
+
+    SQL Injection via `query`
+
+    Vulnerable Sink: Passes untrusted data directly to `db.users.find`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: *id015
+- id: fixora-wrapper-set-config-insecure-deserialization
+  patterns:
+  - pattern-inside: "def set_config(...):\n  ..."
+  - pattern-either:
+    - pattern: setattr(...)
+    - pattern: $OBJ.setattr(...)
+  message: 'Insecure Deserialization via `data`
+
+    Vulnerable Sink: Passes untrusted data directly to `setattr`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: &id016
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Insecure Deserialization
+    confidence: HIGH
+    wrapper_defined_in: backend/hard.py
+    wraps:
+    - setattr
+    modules_used:
+    - builtins
+    vulnerable_parameter: data
+    malicious_payload: <SEMGREP_TAINT_SINK>
+    exploit_explanation: Terminal sink identified for Semgrep cross-file taint engine.
+    exploit_injected_example: set_config(data = <SEMGREP_TAINT_SINK>)
+    impact_summary: Depends on the upstream caller.
+- id: fixora-taint-set-config-insecure-deserialization
+  mode: taint
+  pattern-sources:
+  - pattern: request.json
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: set_config(...)
+  - pattern: $OBJ.set_config(...)
+  - patterns:
+    - pattern-inside: "def set_config(...):\n  ..."
+    - pattern: setattr(..., value)
+  message: 'Taint tracked to vulnerable wrapper `set_config`.
+
+    Insecure Deserialization via `data`
+
+    Vulnerable Sink: Passes untrusted data directly to `setattr`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: *id016
+- id: fixora-wrapper-verify-cryptographic-failure
+  patterns:
+  - pattern-inside: "def verify(...):\n  ..."
+  - pattern-either:
+    - pattern: hmac.new(...)
+    - pattern: $OBJ.new(...)
+    - pattern: new(...)
+  message: 'Cryptographic Failure via `signature`
+
+    Vulnerable Sink: Passes untrusted data directly to `hmac.new`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: &id017
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Cryptographic Failure
+    confidence: HIGH
+    wrapper_defined_in: backend/hard.py
+    wraps:
+    - hmac.new
+    modules_used:
+    - hmac
+    vulnerable_parameter: signature
+    malicious_payload: <malicious_data>
+    exploit_explanation: The use of == instead of hmac.compare_digest allows timing
+      attacks to guess the signature.
+    exploit_injected_example: verify(signature = <malicious_data>)
+    impact_summary: Attackers can exploit the timing difference to guess the signature.
+- id: fixora-taint-verify-cryptographic-failure
+  mode: taint
+  pattern-sources:
+  - pattern: request.headers.get('X-Signature')
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: verify(...)
+  - pattern: $OBJ.verify(...)
+  - patterns:
+    - pattern-inside: "def verify(...):\n  ..."
+    - pattern: hmac.new(..., request.data)
+  message: 'Taint tracked to vulnerable wrapper `verify`.
+
+    Cryptographic Failure via `signature`
+
+    Vulnerable Sink: Passes untrusted data directly to `hmac.new`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: *id017
+  pattern-sanitizers:
+  - pattern: hmac.compare_digest
+- id: fixora-wrapper-trigger-webhook-ssrf
+  patterns:
+  - pattern-inside: "def trigger_webhook(...):\n  ..."
+  - pattern-either:
+    - pattern: requests.get(...)
+    - pattern: $OBJ.get(...)
+    - pattern: get(...)
+  message: 'SSRF via `target_url`
+
+    Vulnerable Sink: Passes untrusted data directly to `requests.get`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: &id018
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: SSRF
+    confidence: HIGH
+    wrapper_defined_in: backend/medium.py
+    wraps:
+    - requests.get
+    modules_used:
+    - requests
+    vulnerable_parameter: target_url
+    malicious_payload: http://example.com/malicious
+    exploit_explanation: The attacker-controlled target_url is used directly in the
+      requests.get call, allowing for SSRF attacks.
+    exploit_injected_example: trigger_webhook(target_url = http://example.com/malicious)
+    impact_summary: Attackers can make unauthorized requests to internal services
+      or external services, potentially leading to data exfiltration or lateral movement.
+    cwe:
+    - CWE-918
+    owasp:
+    - A10:2021
+- id: fixora-taint-trigger-webhook-ssrf
+  mode: taint
+  pattern-sources:
+  - pattern: request.json.get('url')
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: trigger_webhook(...)
+  - pattern: $OBJ.trigger_webhook(...)
+  - patterns:
+    - pattern-inside: "def trigger_webhook(...):\n  ..."
+    - pattern: requests.get(target_url)
+  message: 'Taint tracked to vulnerable wrapper `trigger_webhook`.
+
+    SSRF via `target_url`
+
+    Vulnerable Sink: Passes untrusted data directly to `requests.get`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: *id018
+- id: fixora-wrapper-update-profile-mass-assignment
+  patterns:
+  - pattern-inside: "def update_profile(...):\n  ..."
+  - pattern-either:
+    - pattern: setattr(...)
+    - pattern: $OBJ.setattr(...)
+  message: 'Mass Assignment via `data`
+
+    Vulnerable Sink: Passes untrusted data directly to `setattr`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: &id019
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Mass Assignment
+    confidence: HIGH
+    wrapper_defined_in: backend/medium.py
+    wraps:
+    - setattr
+    modules_used:
+    - builtins
+    vulnerable_parameter: data
+    malicious_payload: <malicious_data>
+    exploit_explanation: The attacker-controlled data is passed directly to the update
+      method, allowing for mass assignment attacks.
+    exploit_injected_example: update_profile(data = <malicious_data>)
+    impact_summary: Attackers can modify sensitive attributes, such as is_admin, to
+      elevate privileges.
+    cwe:
+    - CWE-915
+    owasp:
+    - A03:2021
+- id: fixora-taint-update-profile-mass-assignment
+  mode: taint
+  pattern-sources:
+  - pattern: request.json
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: update_profile(...)
+  - pattern: $OBJ.update_profile(...)
+  - patterns:
+    - pattern-inside: "def update_profile(...):\n  ..."
+    - pattern: setattr(self, key, value)
+  message: 'Taint tracked to vulnerable wrapper `update_profile`.
+
+    Mass Assignment via `data`
+
+    Vulnerable Sink: Passes untrusted data directly to `setattr`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: *id019
+- id: fixora-wrapper-get-user-documents-idor---broken-access-control
+  patterns:
+  - pattern-inside: "def get_user_documents(...):\n  ..."
+  - pattern-either:
+    - pattern: jsonify(...)
+    - pattern: $OBJ.jsonify(...)
+  message: 'IDOR / Broken Access Control via `user_id`
+
+    Vulnerable Sink: Passes untrusted data directly to `jsonify`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: &id020
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: IDOR / Broken Access Control
+    confidence: HIGH
+    wrapper_defined_in: backend/medium.py
+    wraps:
+    - jsonify
+    modules_used:
+    - flask
+    vulnerable_parameter: user_id
+    malicious_payload: ''
+    exploit_explanation: The function fetches documents for the provided user_id without
+      verifying if the current user has access to those documents.
+    exploit_injected_example: ''
+    impact_summary: Attackers can access sensitive documents belonging to other users.
+- id: fixora-taint-get-user-documents-idor---broken-access-control
+  mode: taint
+  pattern-sources:
+  - pattern: user_id
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: get_user_documents(...)
+  - pattern: $OBJ.get_user_documents(...)
+  - patterns:
+    - pattern-inside: "def get_user_documents(...):\n  ..."
+    - pattern: 'jsonify({"docs": documents})'
+  message: 'Taint tracked to vulnerable wrapper `get_user_documents`.
+
+    IDOR / Broken Access Control via `user_id`
+
+    Vulnerable Sink: Passes untrusted data directly to `jsonify`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: *id020
+- id: fixora-wrapper-generate-token-cryptographic-failure
+  patterns:
+  - pattern-inside: "def generate_token(...):\n  ..."
+  - pattern-either:
+    - pattern: hashlib.md5(...)
+    - pattern: $OBJ.md5(...)
+    - pattern: md5(...)
+  message: 'Cryptographic Failure via `user_seed`
+
+    Vulnerable Sink: Passes untrusted data directly to `hashlib.md5`.'
+  severity: WARNING
+  languages:
+  - python
+  metadata: &id021
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Cryptographic Failure
+    confidence: MEDIUM
+    wrapper_defined_in: backend/medium.py
+    wraps:
+    - hashlib.md5
+    modules_used:
+    - hashlib
+    vulnerable_parameter: user_seed
+    malicious_payload: <malicious_data>
+    exploit_explanation: The function uses MD5 to generate a token, which is a weak
+      cryptographic hash function.
+    exploit_injected_example: generate_token(user_seed = <malicious_data>)
+    impact_summary: Attackers can potentially predict or reverse-engineer the token.
+- id: fixora-taint-generate-token-cryptographic-failure
+  mode: taint
+  pattern-sources:
+  - pattern: request.args.get('seed')
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: generate_token(...)
+  - pattern: $OBJ.generate_token(...)
+  - patterns:
+    - pattern-inside: "def generate_token(...):\n  ..."
+    - pattern: hashlib.md5(user_seed.encode())
+  message: 'Taint tracked to vulnerable wrapper `generate_token`.
+
+    Cryptographic Failure via `user_seed`
+
+    Vulnerable Sink: Passes untrusted data directly to `hashlib.md5`.'
+  severity: WARNING
+  languages:
+  - python
+  metadata: *id021
+- id: fixora-wrapper-upload-xml-insecure-deserialization
+  patterns:
+  - pattern-inside: "def upload_xml(...):\n  ..."
+  - pattern-either:
+    - pattern: etree.fromstring(...)
+    - pattern: $OBJ.fromstring(...)
+    - pattern: fromstring(...)
+  message: 'Insecure Deserialization via `xml_data`
+
+    Vulnerable Sink: Passes untrusted data directly to `etree.fromstring`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: &id022
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Insecure Deserialization
+    confidence: HIGH
+    wrapper_defined_in: backend/medium.py
+    wraps:
+    - etree.fromstring
+    modules_used:
+    - lxml
+    vulnerable_parameter: xml_data
+    malicious_payload: <SEMGREP_TAINT_SINK>
+    exploit_explanation: Terminal sink identified for Semgrep cross-file taint engine.
+    exploit_injected_example: upload_xml(xml_data = <SEMGREP_TAINT_SINK>)
+    impact_summary: Depends on the upstream caller.
+- id: fixora-taint-upload-xml-insecure-deserialization
+  mode: taint
+  pattern-sources:
+  - pattern: request.data
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: upload_xml(...)
+  - pattern: $OBJ.upload_xml(...)
+  - patterns:
+    - pattern-inside: "def upload_xml(...):\n  ..."
+    - pattern: etree.fromstring(xml_data, parser)
+  message: 'Taint tracked to vulnerable wrapper `upload_xml`.
+
+    Insecure Deserialization via `xml_data`
+
+    Vulnerable Sink: Passes untrusted data directly to `etree.fromstring`.'
+  severity: ERROR
+  languages:
+  - python
+  metadata: *id022
+- id: fixora-wrapper-validate-input-validation-failure
+  patterns:
+  - pattern-inside: "def validate(...):\n  ..."
+  - pattern-either:
+    - pattern: re.match(...)
+    - pattern: $OBJ.match(...)
+    - pattern: match(...)
+  message: 'Input Validation Failure via `email`
+
+    Vulnerable Sink: Passes untrusted data directly to `re.match`.'
+  severity: WARNING
+  languages:
+  - python
+  metadata: &id023
+    category: security
+    technology:
+    - python
+    source: fixora-ai-analysis
+    vulnerability_type: Input Validation Failure
+    confidence: MEDIUM
+    wrapper_defined_in: backend/medium.py
+    wraps:
+    - re.match
+    modules_used:
+    - re
+    vulnerable_parameter: email
+    malicious_payload: <malicious_data>
+    exploit_explanation: The function uses a regular expression that is vulnerable
+      to catastrophic backtracking.
+    exploit_injected_example: validate(email = <malicious_data>)
+    impact_summary: Attackers can cause a denial-of-service by providing a specially
+      crafted input.
+    cwe:
+    - CWE-400
+    - CWE-1333
+    owasp:
+    - A03:2021
+- id: fixora-taint-validate-input-validation-failure
+  mode: taint
+  pattern-sources:
+  - pattern: request.json.get('email')
+  - pattern: request.$W(...)
+  - pattern: request.$W
+  - pattern: req.$W
+  - pattern: flask.request.$W
+  - pattern: django.http.HttpRequest.$W
+  - patterns:
+    - pattern-inside: "@$APP.$METHOD(...)\ndef $FUNC(..., $ARG, ...):\n    ..."
+    - metavariable-regex:
+        metavariable: $METHOD
+        regex: (?i)^(get|post|put|delete|patch|route)$
+    - pattern: $ARG
+  pattern-sinks:
+  - pattern: validate(...)
+  - pattern: $OBJ.validate(...)
+  - patterns:
+    - pattern-inside: "def validate(...):\n  ..."
+    - pattern: re.match(r'^([a-zA-Z0-9]+\s?)*$', email)
+  message: 'Taint tracked to vulnerable wrapper `validate`.
+
+    Input Validation Failure via `email`
+
+    Vulnerable Sink: Passes untrusted data directly to `re.match`.'
+  severity: WARNING
+  languages:
+  - python
+  metadata: *id023
+- id: fixora-wrapper-useeffect-xss
+  patterns:
+  - pattern-either:
+    - pattern: function useEffect(...) { ... }
+    - pattern: const useEffect = (...) => { ... }
+    - pattern: let useEffect = (...) => { ... }
+    - pattern: var useEffect = (...) => { ... }
+    - pattern: this.useEffect = (...) => { ... }
+    - pattern: this.useEffect = function(...) { ... }
+    - pattern: 'useEffect: (...) => { ... }'
+    - pattern: 'useEffect: function(...) { ... }'
+    - pattern: useEffect(...) { ... }
+    - pattern: useEffect = (...) => { ... }
+    - pattern: useEffect = function(...) { ... }
+  - pattern-either:
+    - pattern: setTimeout(...)
+    - pattern: $OBJ.setTimeout(...)
+  message: 'XSS via `hash`
+
+    Vulnerable Sink: Passes untrusted data directly to `setTimeout`.'
+  severity: ERROR
+  languages:
+  - javascript
+  - typescript
+  metadata: &id024
+    category: security
+    technology:
+    - javascript
+    - typescript
+    source: fixora-ai-analysis
+    vulnerability_type: XSS
+    confidence: HIGH
+    wrapper_defined_in: frontend/components.jsx
+    wraps:
+    - setTimeout
+    modules_used:
+    - builtins
+    vulnerable_parameter: hash
+    malicious_payload: alert('XSS')
+    exploit_explanation: The attacker-controlled hash is executed directly by setTimeout,
+      allowing for arbitrary code execution.
+    exploit_injected_example: useEffect(hash = alert('XSS'))
+    impact_summary: Attackers can execute arbitrary JavaScript code, potentially leading
+      to sensitive data theft or unauthorized actions.
+    cwe: &id025
+    - CWE-79
+    owasp: &id026
+    - A03:2021
+- id: fixora-taint-useeffect-xss
+  mode: taint
+  pattern-sources:
+  - pattern: window.location.hash
+  - pattern: req.$W
+  - pattern: request.$W
+  - pattern: req.body.$W
+  - pattern: req.query.$W
+  - pattern: req.params.$W
+  - pattern: window.location.$W
+  - pattern: document.cookie
+  - pattern: fetch(...)
+  - pattern: axios(...)
+  pattern-sinks:
+  - pattern: useEffect(...)
+  - pattern: $OBJ.useEffect(...)
+  - patterns:
+    - pattern-either:
+      - pattern-inside: function useEffect(...) { ... }
+      - pattern-inside: const useEffect = (...) => { ... }
+      - pattern-inside: let useEffect = (...) => { ... }
+      - pattern-inside: var useEffect = (...) => { ... }
+      - pattern-inside: this.useEffect = (...) => { ... }
+      - pattern-inside: this.useEffect = function(...) { ... }
+      - pattern-inside: 'useEffect: (...) => { ... }'
+      - pattern-inside: 'useEffect: function(...) { ... }'
+      - pattern-inside: useEffect(...) { ... }
+      - pattern-inside: useEffect = (...) => { ... }
+      - pattern-inside: useEffect = function(...) { ... }
+    - pattern: setTimeout(hash, 1000)
+  message: 'Taint tracked to vulnerable wrapper `useEffect`.
+
+    XSS via `hash`
+
+    Vulnerable Sink: Passes untrusted data directly to `setTimeout`.'
+  severity: ERROR
+  languages:
+  - javascript
+  - typescript
+  metadata: *id024
+  pattern-sanitizers:
+  - pattern: DOMPurify.sanitize(...)
+- id: fixora-wrapper-userprofile-xss
+  patterns:
+  - pattern-either:
+    - pattern: function UserProfile(...) { ... }
+    - pattern: const UserProfile = (...) => { ... }
+    - pattern: let UserProfile = (...) => { ... }
+    - pattern: var UserProfile = (...) => { ... }
+    - pattern: this.UserProfile = (...) => { ... }
+    - pattern: this.UserProfile = function(...) { ... }
+    - pattern: 'UserProfile: (...) => { ... }'
+    - pattern: 'UserProfile: function(...) { ... }'
+    - pattern: UserProfile(...) { ... }
+    - pattern: UserProfile = (...) => { ... }
+    - pattern: UserProfile = function(...) { ... }
+  - pattern-either:
+    - pattern: dangerouslySetInnerHTML(...)
+    - pattern: $OBJ.dangerouslySetInnerHTML(...)
+  message: 'XSS via `userData.bio`
+
+    Vulnerable Sink: Passes untrusted data directly to `dangerouslySetInnerHTML`.'
+  severity: ERROR
+  languages:
+  - javascript
+  - typescript
+  metadata: &id027
+    category: security
+    technology:
+    - javascript
+    - typescript
+    source: fixora-ai-analysis
+    vulnerability_type: XSS
+    confidence: HIGH
+    wrapper_defined_in: frontend/components.jsx
+    wraps:
+    - dangerouslySetInnerHTML
+    modules_used:
+    - react
+    - React/DOM
+    vulnerable_parameter: userData.bio
+    malicious_payload: <script>alert('XSS')</script>
+    exploit_explanation: The attacker-controlled userData.bio is rendered directly
+      into the DOM, allowing for arbitrary code execution.
+    exploit_injected_example: UserProfile(userData.bio = <script>alert('XSS')</script>)
+    impact_summary: Attackers can execute arbitrary JavaScript code, potentially leading
+      to sensitive data theft or unauthorized actions.
+    cwe: *id025
+    owasp: *id026
+- id: fixora-taint-userprofile-xss
+  mode: taint
+  pattern-sources:
+  - pattern: userData.bio
+  - pattern: req.$W
+  - pattern: request.$W
+  - pattern: req.body.$W
+  - pattern: req.query.$W
+  - pattern: req.params.$W
+  - pattern: window.location.$W
+  - pattern: document.cookie
+  - pattern: fetch(...)
+  - pattern: axios(...)
+  pattern-sinks:
+  - pattern: UserProfile(...)
+  - pattern: $OBJ.UserProfile(...)
+  - patterns:
+    - pattern-either:
+      - pattern-inside: function UserProfile(...) { ... }
+      - pattern-inside: const UserProfile = (...) => { ... }
+      - pattern-inside: let UserProfile = (...) => { ... }
+      - pattern-inside: var UserProfile = (...) => { ... }
+      - pattern-inside: this.UserProfile = (...) => { ... }
+      - pattern-inside: this.UserProfile = function(...) { ... }
+      - pattern-inside: 'UserProfile: (...) => { ... }'
+      - pattern-inside: 'UserProfile: function(...) { ... }'
+      - pattern-inside: UserProfile(...) { ... }
+      - pattern-inside: UserProfile = (...) => { ... }
+      - pattern-inside: UserProfile = function(...) { ... }
+    - pattern: dangerouslySetInnerHTML
+  message: 'Taint tracked to vulnerable wrapper `UserProfile`.
+
+    XSS via `userData.bio`
+
+    Vulnerable Sink: Passes untrusted data directly to `dangerouslySetInnerHTML`.'
+  severity: ERROR
+  languages:
+  - javascript
+  - typescript
+  metadata: *id027
+  pattern-sanitizers:
+  - pattern: DOMPurify.sanitize(...)
+- id: fixora-wrapper-userprofile-business-logic-flaw
+  patterns:
+  - pattern-either:
+    - pattern: function UserProfile(...) { ... }
+    - pattern: const UserProfile = (...) => { ... }
+    - pattern: let UserProfile = (...) => { ... }
+    - pattern: var UserProfile = (...) => { ... }
+    - pattern: this.UserProfile = (...) => { ... }
+    - pattern: this.UserProfile = function(...) { ... }
+    - pattern: 'UserProfile: (...) => { ... }'
+    - pattern: 'UserProfile: function(...) { ... }'
+    - pattern: UserProfile(...) { ... }
+    - pattern: UserProfile = (...) => { ... }
+    - pattern: UserProfile = function(...) { ... }
+  - pattern-either:
+    - pattern: fetch(...)
+    - pattern: $OBJ.fetch(...)
+  message: 'Business Logic Flaw via `fetch(''/api/users/delete'')`
+
+    Vulnerable Sink: Passes untrusted data directly to `fetch`.'
+  severity: WARNING
+  languages:
+  - javascript
+  - typescript
+  metadata: &id028
+    category: security
+    technology:
+    - javascript
+    - typescript
+    source: fixora-ai-analysis
+    vulnerability_type: Business Logic Flaw
+    confidence: MEDIUM
+    wrapper_defined_in: frontend/components.jsx
+    wraps:
+    - fetch
+    modules_used:
+    - builtins
+    vulnerable_parameter: fetch('/api/users/delete')
+    malicious_payload: <malicious_data>
+    exploit_explanation: The UI is updated without verifying the network response,
+      potentially leading to inconsistent state.
+    exploit_injected_example: UserProfile(fetch('/api/users/delete') = <malicious_data>)
+    impact_summary: Attackers can exploit the inconsistent state to perform unauthorized
+      actions or access sensitive data.
+- id: fixora-taint-userprofile-business-logic-flaw
+  mode: taint
+  pattern-sources:
+  - pattern: fetch('/api/users/delete')
+  - pattern: req.$W
+  - pattern: request.$W
+  - pattern: req.body.$W
+  - pattern: req.query.$W
+  - pattern: req.params.$W
+  - pattern: window.location.$W
+  - pattern: document.cookie
+  - pattern: fetch(...)
+  - pattern: axios(...)
+  pattern-sinks:
+  - pattern: UserProfile(...)
+  - pattern: $OBJ.UserProfile(...)
+  - patterns:
+    - pattern-either:
+      - pattern-inside: function UserProfile(...) { ... }
+      - pattern-inside: const UserProfile = (...) => { ... }
+      - pattern-inside: let UserProfile = (...) => { ... }
+      - pattern-inside: var UserProfile = (...) => { ... }
+      - pattern-inside: this.UserProfile = (...) => { ... }
+      - pattern-inside: this.UserProfile = function(...) { ... }
+      - pattern-inside: 'UserProfile: (...) => { ... }'
+      - pattern-inside: 'UserProfile: function(...) { ... }'
+      - pattern-inside: UserProfile(...) { ... }
+      - pattern-inside: UserProfile = (...) => { ... }
+      - pattern-inside: UserProfile = function(...) { ... }
+    - pattern: setProfile(null)
+  message: 'Taint tracked to vulnerable wrapper `UserProfile`.
+
+    Business Logic Flaw via `fetch(''/api/users/delete'')`
+
+    Vulnerable Sink: Passes untrusted data directly to `fetch`.'
+  severity: WARNING
+  languages:
+  - javascript
+  - typescript
+  metadata: *id028
+  pattern-sanitizers:
+  - pattern: try-catch block
+- id: fixora-wrapper-syncdata-business-logic-flaw
+  patterns:
+  - pattern-either:
+    - pattern: function syncData(...) { ... }
+    - pattern: const syncData = (...) => { ... }
+    - pattern: let syncData = (...) => { ... }
+    - pattern: var syncData = (...) => { ... }
+    - pattern: this.syncData = (...) => { ... }
+    - pattern: this.syncData = function(...) { ... }
+    - pattern: 'syncData: (...) => { ... }'
+    - pattern: 'syncData: function(...) { ... }'
+    - pattern: syncData(...) { ... }
+    - pattern: syncData = (...) => { ... }
+    - pattern: syncData = function(...) { ... }
+  - pattern-either:
+    - pattern: fetch(...)
+    - pattern: $OBJ.fetch(...)
+  message: 'Business Logic Flaw via `fetch(''/api/sync'')`
+
+    Vulnerable Sink: Passes untrusted data directly to `fetch`.'
+  severity: WARNING
+  languages:
+  - javascript
+  - typescript
+  metadata: &id029
+    category: security
+    technology:
+    - javascript
+    - typescript
+    source: fixora-ai-analysis
+    vulnerability_type: Business Logic Flaw
+    confidence: MEDIUM
+    wrapper_defined_in: frontend/components.jsx
+    wraps:
+    - fetch
+    modules_used:
+    - builtins
+    vulnerable_parameter: fetch('/api/sync')
+    malicious_payload: <malicious_data>
+    exploit_explanation: The promise rejection is not handled, potentially leading
+      to unexpected behavior or errors.
+    exploit_injected_example: syncData(fetch('/api/sync') = <malicious_data>)
+    impact_summary: Attackers can exploit the unhandled promise rejection to perform
+      unauthorized actions or access sensitive data.
+- id: fixora-taint-syncdata-business-logic-flaw
+  mode: taint
+  pattern-sources:
+  - pattern: fetch('/api/sync')
+  - pattern: req.$W
+  - pattern: request.$W
+  - pattern: req.body.$W
+  - pattern: req.query.$W
+  - pattern: req.params.$W
+  - pattern: window.location.$W
+  - pattern: document.cookie
+  - pattern: fetch(...)
+  - pattern: axios(...)
+  pattern-sinks:
+  - pattern: syncData(...)
+  - pattern: $OBJ.syncData(...)
+  - patterns:
+    - pattern-either:
+      - pattern-inside: function syncData(...) { ... }
+      - pattern-inside: const syncData = (...) => { ... }
+      - pattern-inside: let syncData = (...) => { ... }
+      - pattern-inside: var syncData = (...) => { ... }
+      - pattern-inside: this.syncData = (...) => { ... }
+      - pattern-inside: this.syncData = function(...) { ... }
+      - pattern-inside: 'syncData: (...) => { ... }'
+      - pattern-inside: 'syncData: function(...) { ... }'
+      - pattern-inside: syncData(...) { ... }
+      - pattern-inside: syncData = (...) => { ... }
+      - pattern-inside: syncData = function(...) { ... }
+    - pattern: fetch('/api/sync')
+  message: 'Taint tracked to vulnerable wrapper `syncData`.
+
+    Business Logic Flaw via `fetch(''/api/sync'')`
+
+    Vulnerable Sink: Passes untrusted data directly to `fetch`.'
+  severity: WARNING
+  languages:
+  - javascript
+  - typescript
+  metadata: *id029
+  pattern-sanitizers:
+  - pattern: try-catch block
