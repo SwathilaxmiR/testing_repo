@@ -33,6 +33,7 @@ rules:
     - cursor.execute
     modules_used:
     - sqlite3
+    - flask
     vulnerable_parameter: user_id
     malicious_payload: 1 OR 1=1 --
     exploit_explanation: The attacker-controlled user_id is concatenated into the
@@ -104,13 +105,14 @@ rules:
     - os.system
     modules_used:
     - os
+    - flask
     vulnerable_parameter: ip_address
     malicious_payload: ; rm -rf /
     exploit_explanation: The attacker-controlled ip_address is concatenated into the
       system command, allowing arbitrary command execution.
     exploit_injected_example: ping_server(ip_address = ; rm -rf /)
     impact_summary: Attackers can execute arbitrary system commands, potentially leading
-      to a complete system compromise.
+      to data loss or system compromise.
     cwe: &id011
     - CWE-78
     owasp: &id012
@@ -171,14 +173,15 @@ rules:
     wraps:
     - open
     modules_used:
+    - flask
     - builtins
     vulnerable_parameter: filename
     malicious_payload: ../../../../etc/passwd
     exploit_explanation: The attacker-controlled filename is concatenated into the
       file path, allowing access to arbitrary files.
     exploit_injected_example: read_log(filename = ../../../../etc/passwd)
-    impact_summary: Attackers can read arbitrary files on the system, potentially
-      leading to sensitive data exposure.
+    impact_summary: Attackers can read arbitrary files, potentially leading to sensitive
+      data exposure.
     cwe:
     - CWE-22
     owasp:
@@ -243,11 +246,11 @@ rules:
     - flask
     vulnerable_parameter: password
     malicious_payload: ''
-    exploit_explanation: The password is compared in plaintext, allowing an attacker
-      to intercept and reuse the password.
+    exploit_explanation: The password is compared in plaintext, allowing attackers
+      to obtain the password.
     exploit_injected_example: ''
-    impact_summary: Attackers can intercept and reuse the password, potentially leading
-      to unauthorized access.
+    impact_summary: Attackers can obtain the password, potentially leading to unauthorized
+      access.
     cwe:
     - CWE-256
     - CWE-916
@@ -273,7 +276,7 @@ rules:
   - pattern: $OBJ.login(...)
   - patterns:
     - pattern-inside: "def login(...):\n  ..."
-    - pattern: data.get('password')
+    - pattern: data.get('password') == db_password
   message: 'Taint tracked to vulnerable wrapper `login`.
 
     Plaintext Password via `password`
@@ -317,11 +320,10 @@ rules:
     - sqlite3
     vulnerable_parameter: None
     malicious_payload: ''
-    exploit_explanation: The function lacks an authentication check, allowing an attacker
-      to delete all users without authorization.
+    exploit_explanation: The function lacks an authentication check, allowing unauthorized
+      access.
     exploit_injected_example: ''
-    impact_summary: Attackers can delete all users, potentially leading to data loss
-      and system compromise.
+    impact_summary: Attackers can delete all users, potentially leading to data loss.
     cwe:
     - CWE-306
     owasp:
@@ -345,7 +347,7 @@ rules:
   - pattern: $OBJ.delete_all_users(...)
   - patterns:
     - pattern-inside: "def delete_all_users(...):\n  ..."
-    - pattern: conn.execute(...)
+    - pattern: conn.execute('DELETE FROM users')
   message: 'Taint tracked to vulnerable wrapper `delete_all_users`.
 
     Missing Authentication via `None`
@@ -455,13 +457,14 @@ rules:
     - cursor.execute
     modules_used:
     - sqlite3
+    - flask
     vulnerable_parameter: bio
     malicious_payload: 1' OR 1=1 --
     exploit_explanation: The attacker-controlled bio is concatenated into the SQL
       query, allowing arbitrary SQL execution.
     exploit_injected_example: view_profile(bio = 1' OR 1=1 --)
     impact_summary: Attackers can execute arbitrary SQL queries, potentially leading
-      to data exposure and system compromise.
+      to data exposure or modification.
     cwe: *id007
     owasp: *id008
 - id: fixora-taint-view-profile-sql-injection
@@ -487,7 +490,7 @@ rules:
     - pattern: cursor.execute(...)
   - patterns:
     - pattern-inside: "def view_profile(...):\n  ..."
-    - pattern: cursor.execute(..., bio)
+    - pattern: cursor.execute(..., ...)
   message: 'Taint tracked to vulnerable wrapper `view_profile`.
 
     SQL Injection via `bio`
@@ -530,13 +533,14 @@ rules:
     - conn.execute
     modules_used:
     - sqlite3
+    - flask
     vulnerable_parameter: target_user_id
     malicious_payload: ''
-    exploit_explanation: The function lacks access control, allowing an attacker to
-      update settings for any user.
+    exploit_explanation: The function lacks access control, allowing attackers to
+      update arbitrary user settings.
     exploit_injected_example: ''
-    impact_summary: Attackers can update settings for any user, potentially leading
-      to unauthorized access and data tampering.
+    impact_summary: Attackers can update arbitrary user settings, potentially leading
+      to unauthorized access or data modification.
 - id: fixora-taint-update-settings-idor---broken-access-control
   mode: taint
   pattern-sources:
@@ -557,10 +561,10 @@ rules:
   - pattern: $OBJ.update_settings(...)
   - patterns:
     - pattern-inside: "def update_settings(...):\n  ..."
-    - pattern: conn.execute(...)
+    - pattern: conn.execute('UPDATE settings ...')
   - patterns:
     - pattern-inside: "def update_settings(...):\n  ..."
-    - pattern: conn.execute(..., target_id)
+    - pattern: conn.execute(..., ...)
   message: 'Taint tracked to vulnerable wrapper `update_settings`.
 
     IDOR / Broken Access Control via `target_user_id`
@@ -598,6 +602,7 @@ rules:
     - subprocess.Popen
     modules_used:
     - subprocess
+    - flask
     vulnerable_parameter: filename
     malicious_payload: <SEMGREP_TAINT_SINK>
     exploit_explanation: Terminal sink identified for Semgrep cross-file taint engine.
@@ -660,6 +665,7 @@ rules:
     - conn.execute
     modules_used:
     - sqlite3
+    - flask
     vulnerable_parameter: table_name
     malicious_payload: <SEMGREP_TAINT_SINK>
     exploit_explanation: Terminal sink identified for Semgrep cross-file taint engine.
@@ -687,7 +693,7 @@ rules:
   - pattern: $OBJ.reset_system(...)
   - patterns:
     - pattern-inside: "def reset_system(...):\n  ..."
-    - pattern: conn.execute(..., f-string)
+    - pattern: conn.execute(..., ...)
   message: 'Taint tracked to vulnerable wrapper `reset_system`.
 
     SQL Injection via `table_name`
@@ -749,7 +755,7 @@ rules:
   - pattern: $OBJ.search_users(...)
   - patterns:
     - pattern-inside: "def search_users(...):\n  ..."
-    - pattern: db.users.find(..., query)
+    - pattern: db.users.find(..., ...)
   message: 'Taint tracked to vulnerable wrapper `search_users`.
 
     SQL Injection via `query`
@@ -782,6 +788,7 @@ rules:
     wraps:
     - setattr
     modules_used:
+    - flask
     - builtins
     vulnerable_parameter: data
     malicious_payload: <SEMGREP_TAINT_SINK>
@@ -808,7 +815,7 @@ rules:
   - pattern: $OBJ.set_config(...)
   - patterns:
     - pattern-inside: "def set_config(...):\n  ..."
-    - pattern: setattr(..., value)
+    - pattern: setattr(..., ...)
   message: 'Taint tracked to vulnerable wrapper `set_config`.
 
     Insecure Deserialization via `data`
@@ -842,6 +849,7 @@ rules:
     wraps:
     - hmac.new
     modules_used:
+    - flask
     - hmac
     vulnerable_parameter: signature
     malicious_payload: <malicious_data>
@@ -869,7 +877,7 @@ rules:
   - pattern: $OBJ.verify(...)
   - patterns:
     - pattern-inside: "def verify(...):\n  ..."
-    - pattern: hmac.new(..., request.data)
+    - pattern: hmac.new(..., ...)
   message: 'Taint tracked to vulnerable wrapper `verify`.
 
     Cryptographic Failure via `signature`
@@ -879,8 +887,6 @@ rules:
   languages:
   - python
   metadata: *id017
-  pattern-sanitizers:
-  - pattern: hmac.compare_digest
 - id: fixora-wrapper-trigger-webhook-ssrf
   patterns:
   - pattern-inside: "def trigger_webhook(...):\n  ..."
@@ -906,13 +912,14 @@ rules:
     - requests.get
     modules_used:
     - requests
+    - flask
     vulnerable_parameter: target_url
     malicious_payload: http://example.com/malicious
     exploit_explanation: The attacker-controlled target_url is used directly in the
-      requests.get call, allowing for SSRF attacks.
+      requests.get call, allowing SSRF attacks.
     exploit_injected_example: trigger_webhook(target_url = http://example.com/malicious)
-    impact_summary: Attackers can make unauthorized requests to internal services
-      or external services, potentially leading to data exfiltration or lateral movement.
+    impact_summary: Attackers can make arbitrary HTTP requests from the server, potentially
+      leading to internal network exploitation.
     cwe:
     - CWE-918
     owasp:
@@ -937,7 +944,7 @@ rules:
   - pattern: $OBJ.trigger_webhook(...)
   - patterns:
     - pattern-inside: "def trigger_webhook(...):\n  ..."
-    - pattern: requests.get(target_url)
+    - pattern: requests.get(...)
   message: 'Taint tracked to vulnerable wrapper `trigger_webhook`.
 
     SSRF via `target_url`
@@ -971,13 +978,14 @@ rules:
     - setattr
     modules_used:
     - builtins
+    - flask
     vulnerable_parameter: data
     malicious_payload: <malicious_data>
     exploit_explanation: The attacker-controlled data is passed directly to the update
-      method, allowing for mass assignment attacks.
+      method, allowing mass assignment attacks.
     exploit_injected_example: update_profile(data = <malicious_data>)
-    impact_summary: Attackers can modify sensitive attributes, such as is_admin, to
-      elevate privileges.
+    impact_summary: Attackers can modify arbitrary attributes of the User object,
+      potentially leading to privilege escalation.
     cwe:
     - CWE-915
     owasp:
@@ -1002,7 +1010,7 @@ rules:
   - pattern: $OBJ.update_profile(...)
   - patterns:
     - pattern-inside: "def update_profile(...):\n  ..."
-    - pattern: setattr(self, key, value)
+    - pattern: setattr(..., ...)
   message: 'Taint tracked to vulnerable wrapper `update_profile`.
 
     Mass Assignment via `data`
@@ -1038,10 +1046,11 @@ rules:
     - flask
     vulnerable_parameter: user_id
     malicious_payload: ''
-    exploit_explanation: The function fetches documents for the provided user_id without
-      verifying if the current user has access to those documents.
+    exploit_explanation: The function does not verify if the current user is authorized
+      to access the documents of the specified user_id.
     exploit_injected_example: ''
-    impact_summary: Attackers can access sensitive documents belonging to other users.
+    impact_summary: Attackers can access documents of other users, potentially leading
+      to data leakage.
 - id: fixora-taint-get-user-documents-idor---broken-access-control
   mode: taint
   pattern-sources:
@@ -1062,7 +1071,7 @@ rules:
   - pattern: $OBJ.get_user_documents(...)
   - patterns:
     - pattern-inside: "def get_user_documents(...):\n  ..."
-    - pattern: 'jsonify({"docs": documents})'
+    - pattern: jsonify(...)
   message: 'Taint tracked to vulnerable wrapper `get_user_documents`.
 
     IDOR / Broken Access Control via `user_id`
@@ -1097,12 +1106,14 @@ rules:
     - hashlib.md5
     modules_used:
     - hashlib
+    - flask
     vulnerable_parameter: user_seed
     malicious_payload: <malicious_data>
-    exploit_explanation: The function uses MD5 to generate a token, which is a weak
-      cryptographic hash function.
+    exploit_explanation: The function uses MD5, a weak cryptographic hash function,
+      to generate tokens.
     exploit_injected_example: generate_token(user_seed = <malicious_data>)
-    impact_summary: Attackers can potentially predict or reverse-engineer the token.
+    impact_summary: Attackers can potentially predict or reverse-engineer the tokens,
+      leading to security vulnerabilities.
 - id: fixora-taint-generate-token-cryptographic-failure
   mode: taint
   pattern-sources:
@@ -1123,7 +1134,7 @@ rules:
   - pattern: $OBJ.generate_token(...)
   - patterns:
     - pattern-inside: "def generate_token(...):\n  ..."
-    - pattern: hashlib.md5(user_seed.encode())
+    - pattern: hashlib.md5(...)
   message: 'Taint tracked to vulnerable wrapper `generate_token`.
 
     Cryptographic Failure via `user_seed`
@@ -1158,6 +1169,7 @@ rules:
     - etree.fromstring
     modules_used:
     - lxml
+    - flask
     vulnerable_parameter: xml_data
     malicious_payload: <SEMGREP_TAINT_SINK>
     exploit_explanation: Terminal sink identified for Semgrep cross-file taint engine.
@@ -1183,7 +1195,7 @@ rules:
   - pattern: $OBJ.upload_xml(...)
   - patterns:
     - pattern-inside: "def upload_xml(...):\n  ..."
-    - pattern: etree.fromstring(xml_data, parser)
+    - pattern: etree.fromstring(..., ...)
   message: 'Taint tracked to vulnerable wrapper `upload_xml`.
 
     Insecure Deserialization via `xml_data`
@@ -1218,13 +1230,14 @@ rules:
     - re.match
     modules_used:
     - re
+    - flask
     vulnerable_parameter: email
     malicious_payload: <malicious_data>
     exploit_explanation: The function uses a regular expression that is vulnerable
-      to catastrophic backtracking.
+      to catastrophic backtracking, potentially leading to a denial-of-service attack.
     exploit_injected_example: validate(email = <malicious_data>)
-    impact_summary: Attackers can cause a denial-of-service by providing a specially
-      crafted input.
+    impact_summary: Attackers can cause the function to consume excessive resources,
+      leading to performance issues.
     cwe:
     - CWE-400
     - CWE-1333
@@ -1250,7 +1263,7 @@ rules:
   - pattern: $OBJ.validate(...)
   - patterns:
     - pattern-inside: "def validate(...):\n  ..."
-    - pattern: re.match(r'^([a-zA-Z0-9]+\s?)*$', email)
+    - pattern: re.match(..., ...)
   message: 'Taint tracked to vulnerable wrapper `validate`.
 
     Input Validation Failure via `email`
@@ -1298,10 +1311,10 @@ rules:
     modules_used:
     - builtins
     vulnerable_parameter: hash
-    malicious_payload: alert('XSS')
+    malicious_payload: javascript:alert('XSS')
     exploit_explanation: The attacker-controlled hash is executed directly by setTimeout,
-      allowing for arbitrary code execution.
-    exploit_injected_example: useEffect(hash = alert('XSS'))
+      allowing for arbitrary JavaScript execution.
+    exploit_injected_example: useEffect(hash = javascript:alert('XSS'))
     impact_summary: Attackers can execute arbitrary JavaScript code, potentially leading
       to sensitive data theft or unauthorized actions.
     cwe: &id025
@@ -1391,7 +1404,7 @@ rules:
     vulnerable_parameter: userData.bio
     malicious_payload: <script>alert('XSS')</script>
     exploit_explanation: The attacker-controlled userData.bio is rendered directly
-      into the DOM, allowing for arbitrary code execution.
+      into the DOM, allowing for arbitrary JavaScript execution.
     exploit_injected_example: UserProfile(userData.bio = <script>alert('XSS')</script>)
     impact_summary: Attackers can execute arbitrary JavaScript code, potentially leading
       to sensitive data theft or unauthorized actions.
@@ -1478,11 +1491,11 @@ rules:
     - builtins
     vulnerable_parameter: fetch('/api/users/delete')
     malicious_payload: <malicious_data>
-    exploit_explanation: The UI is updated without verifying the network response,
-      potentially leading to inconsistent state.
+    exploit_explanation: The local state is updated without verifying the network
+      response, potentially leading to inconsistent state.
     exploit_injected_example: UserProfile(fetch('/api/users/delete') = <malicious_data>)
-    impact_summary: Attackers can exploit the inconsistent state to perform unauthorized
-      actions or access sensitive data.
+    impact_summary: Attackers can potentially exploit the inconsistent state, leading
+      to unauthorized actions or data corruption.
 - id: fixora-taint-userprofile-business-logic-flaw
   mode: taint
   pattern-sources:
@@ -1567,8 +1580,8 @@ rules:
     exploit_explanation: The promise rejection is not handled, potentially leading
       to unexpected behavior or errors.
     exploit_injected_example: syncData(fetch('/api/sync') = <malicious_data>)
-    impact_summary: Attackers can exploit the unhandled promise rejection to perform
-      unauthorized actions or access sensitive data.
+    impact_summary: Attackers can potentially exploit the unhandled promise rejection,
+      leading to unauthorized actions or data corruption.
 - id: fixora-taint-syncdata-business-logic-flaw
   mode: taint
   pattern-sources:
